@@ -149,8 +149,8 @@ class DataPoints:
 
         datapoints = open_file(folder + basename + '.gpkg')
         datapoints = datapoints[['datapoint_id', 'geometry', 'datetime'] +
-                                            [c for c in datapoints if c not in
-                                             ['datapoint_id', 'geometry', 'datetime']]]
+                                [c for c in datapoints if c not in
+                                ['datapoint_id', 'geometry', 'datetime']]]
         try:
             parameters = open_file(folder + basename + '-parameters.csv')
             parameters = parameters.set_index('parameter').T.to_dict('records')[0]
@@ -189,7 +189,8 @@ class DataPoints:
 
     def save(self, folder,
              crs_export: str | int | pyproj.crs.crs.CRS = None,
-             tz_export: str | timezone | pytz.BaseTzInfo = None):
+             tz_export: str | timezone | pytz.BaseTzInfo = None,
+             params: bool = True):
 
         """Save the datapoints.
 
@@ -205,6 +206,9 @@ class DataPoints:
             tz_export : str | timezone | pytz.BaseTzInfo, optional, default None
                 The timezone to convert the datapoints to before saving (only converts the datapoints that are saved and
                  not the DataPoints object).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -225,9 +229,10 @@ class DataPoints:
             lambda dt: str(dt) if isinstance(dt, (datetime | pd.Timestamp)) else dt)
         datapoints.to_file(folder + '/' + self.name + '.gpkg')  # exported datapoints as GPKG
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class Sections:
@@ -399,7 +404,7 @@ class Sections:
 
         sections = open_file(folder + basename + '.gpkg')
         sections = sections[['section_id', 'geometry', 'datetime'] +
-                                        [c for c in sections if c not in ['section_id', 'geometry', 'datetime']]]
+                            [c for c in sections if c not in ['section_id', 'geometry', 'datetime']]]
         try:
             parameters = open_file(folder + basename + '-parameters.csv')
             parameters = parameters.set_index('parameter').T.to_dict('records')[0]
@@ -438,7 +443,8 @@ class Sections:
 
     def save(self, folder,
              crs_export: str | int | pyproj.crs.crs.CRS = None,
-             tz_export: str | timezone | pytz.BaseTzInfo = None):
+             tz_export: str | timezone | pytz.BaseTzInfo = None,
+             params: bool = True):
 
         """Save the sections.
 
@@ -454,6 +460,9 @@ class Sections:
             tz_export : str | timezone | pytz.BaseTzInfo, optional, default None
                 The timezone to convert the sections to before saving (only converts the sections that are saved and not
                  the Sections object).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -474,9 +483,10 @@ class Sections:
             lambda dt: str(dt) if isinstance(dt, (datetime | pd.Timestamp)) else dt)
         sections.to_file(folder + '/' + self.name + '.gpkg')  # export sections as GPKG
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 ##############################################################################################################
@@ -588,7 +598,7 @@ class Periods:
 
         return cls(periods=import_periods, name=basename, parameters=import_parameters)
 
-    def save(self, folder: str):
+    def save(self, folder: str, params: bool = True):
 
         """Save the periods.
 
@@ -597,7 +607,10 @@ class Periods:
 
         Parameters:
             folder : str
-                The path to the export folder where the exported files will be saved
+                The path to the export folder where the exported files will be saved.
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -611,9 +624,10 @@ class Periods:
                 lambda dt: str(dt) if isinstance(dt, (datetime | pd.Timestamp)) else dt)
         periods.to_csv(folder + '/' + self.name + '.csv', index=False)  # export to CSV
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class Cells:
@@ -625,17 +639,19 @@ class Cells:
     @classmethod
     def delimit(  # wrapper of cells_delimit()
             cls,
-            extent: Sections | DataPoints | gpd.GeoDataFrame | tuple[list, str],
+            extent: Sections | DataPoints | gpd.GeoDataFrame | shapely.geometry.base.BaseGeometry | tuple[list, str],
             var: str,
             side: int | float,
-            buffer: int | float = None):
+            buffer: int | float = None,
+            coarse: int = None,
+            select: str = None):
 
         """Delimit grid cells.
 
         From a given extent, variation, and side length, delimit rectangular or hexagonal grid cells of a regular size.
 
         Parameters:
-            extent : Sections | DataPoints | geopandas.GeoDataFrame | tuple[list, str]
+            extent : Sections | DataPoints | geopandas.GeoDataFrame | shapely geometry | tuple[list, str]
                 An object detailing the spatial extent over which the periods will be limited. Must be one of:
                     a Sections object
                     a DataPoints object
@@ -647,13 +663,36 @@ class Cells:
                     'hexagonal': make hexagonal cells ('h' also accepted)
             side : int | float
                 The side length of the rectangles/hexagons in the units of the CRS.
+            coarse : int, default None
+                If specified, cells will be made via a two-step process where the first step involves making coarse
+                 cells within which the cells are then made. This can speed up cell making for larger numbers of cells
+                 (e.g., >10 000), particularly if select is used.
+                 The value of coarse is a factor that scales the size of the coarse cells relative to the cells (e.g.,
+                 if coarse = 10, each coarse cell will be 10 times larger than each cell).
+                If using coarse, it is recommended to use select as well.
+                Note that coarse is only applicable if the extent is a GeoDataFrame and the variation is rectangular.
             buffer : int | float, optional, default 0
                 The width of a buffer to be created around the extent to enlarge it and ensure that all the surveyed
                  area is covered by the cells.
+            select : str, default None
+                Cells are initially made in a regular grid where all rows are the same length and all columns are the same
+                 length. If select is None (default), this is how they will be left. Alternatively, the method to use to
+                 select which cells to keep can be specified. Must be one of the following:
+                    'intersects': only cells that intersect the extent are kept
+                    'within': only cells that are within the extent are kept
+                    'centroid': only cells whose centroid intersects the extent are kept
+                 Note that select is only applicable if the extent is a Sections object, a DataPoints object, or
+                  a GeoDataFrame.
         Returns:
             Cells
                 Returns a Cells object with three attributes: name, parameters, and cells.
         """
+
+        check_dtype(par='extent', obj=extent, dtypes=[Sections, DataPoints, gpd.GeoDataFrame, tuple])
+        check_dtype(par='var', obj=var, dtypes=str)
+        var = var.lower()
+        check_opt(par='var', opt=var, opts=['rectangular', 'hexagonal', 'r', 'h'])
+        check_dtype(par='side', obj=side, dtypes=[int, float])
 
         source = 'Sections - ' + extent.name if isinstance(extent, Sections) \
             else 'DataPoints - ' + extent.name if isinstance(extent, DataPoints) \
@@ -663,11 +702,46 @@ class Cells:
             else extent.datapoints if isinstance(extent, DataPoints) \
             else extent
 
-        cells = cells_delimit(
-            extent=extent,
-            var=var,
-            side=side,
-            buffer=buffer)
+        if (isinstance(coarse, int) and   # if coarse specified, extent appropriate, and var rectangular
+                isinstance(extent, gpd.GeoDataFrame) and var in ['rectangular', 'r']):
+            cells_coarse = cells_delimit(
+                extent=extent,
+                var=var,
+                side=side*coarse,
+                buffer=buffer,
+                select='intersects')
+            cells = []
+            for cell_id in cells_coarse['cell_id']:
+                cells.append(cells_delimit(
+                    extent=cells_coarse[cells_coarse['cell_id'] == cell_id],
+                    var=var,
+                    side=side,
+                    buffer=None,
+                    select=None))
+            cells = pd.concat(cells).reset_index(drop=True)  # concat the fine cells from each coarse cell
+            if isinstance(select, str):  # if select method specified
+                check_opt(par='select', opt=select, opts=['intersects', 'within', 'centroid'])
+                extent = extent.dissolve().geometry[0]  # ...dissolve the extent to single geometry
+                if buffer is not None:  # if a buffer is specified...
+                    extent = extent.buffer(buffer)  # ...apply buffer
+                # then select the cells that...
+                if select == 'intersects':  # ...intersect the extent
+                    cells = cells[cells.intersects(extent)].reset_index(drop=True)
+                elif select == 'within':  # ...are within the extent
+                    cells = cells[cells.within(extent)].reset_index(drop=True)
+                elif select == 'centroid':  # ...whose centroid intersects the extent
+                    cells = cells[cells['centroid'].intersects(extent)].reset_index(drop=True)
+            cells['cell_id'] = ['c' + str(i).zfill(len(str(len(cells)))) +  # overwrite cell IDs
+                                '-' + var[0] + str(side) + cells.crs.axis_info[0].unit_name[0]
+                                for i in range(1, len(cells) + 1)]
+
+        else:  # if coarse not specified
+            cells = cells_delimit(
+                extent=extent,
+                var=var,
+                side=side,
+                buffer=buffer,
+                select=select)
 
         crs = cells.crs
         unit = crs.axis_info[0].unit_name
@@ -748,7 +822,7 @@ class Cells:
         datapoints_plot(ax, datapoints.datapoints) if isinstance(datapoints, DataPoints) else None
         sections_plot(ax, sections.sections) if isinstance(sections, Sections) else None
 
-    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None):
+    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None, params: bool = True):
 
         """Save the cells.
 
@@ -764,6 +838,9 @@ class Cells:
                  Cells object). The CRS must be either: a pyproj.CRS; a string in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 'EPSG:4326'); or an integer in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 4326).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -780,9 +857,10 @@ class Cells:
         cells[['cell_id', 'polygon']].to_file(folder + '/' + self.name + '-polygons.gpkg')  # export polygons
         cells[['cell_id', 'centroid']].to_file(folder + '/' + self.name + '-centroids.gpkg')  # export centroids
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class Segments:
@@ -931,7 +1009,7 @@ class Segments:
         sections_plot(ax, sections.sections) if isinstance(sections, Sections) else None
         datapoints_plot(ax, datapoints.datapoints) if isinstance(datapoints, DataPoints) else None
 
-    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None):
+    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None, params: bool = True):
 
         """Save the segments.
 
@@ -947,6 +1025,9 @@ class Segments:
                  the Segments object). The CRS must be either: a pyproj.CRS; a string in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 'EPSG:4326'); or an integer in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 4326).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -963,9 +1044,10 @@ class Segments:
         segments[['segment_id', 'line']].to_file(folder + '/' + self.name + '-lines.gpkg')  # export lines
         segments[['segment_id', 'midpoint']].to_file(folder + '/' + self.name + '-midpoints.gpkg')  # export midpoints
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class Presences:
@@ -1063,7 +1145,7 @@ class Presences:
         fig, ax = plt.subplots(figsize=(16, 8))
         presences_plot(ax=ax, points=self.presences, buffer=None)
 
-    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None):
+    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None, params: bool = True):
 
         """Save the presences.
 
@@ -1078,6 +1160,9 @@ class Presences:
                  not the Presences object). The CRS must be either: a pyproj.CRS; a string in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 'EPSG:4326'); or an integer in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 4326).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -1094,9 +1179,10 @@ class Presences:
             lambda dt: dt.strftime('%Y-%m-%d') if isinstance(dt, (datetime | pd.Timestamp)) else dt)
         presences.to_file(folder + '/' + self.name + '-points.gpkg')  # export presences
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class PresenceZones:
@@ -1230,7 +1316,7 @@ class PresenceZones:
         sections_plot(ax, sections.sections) if isinstance(sections, Sections) else None
         presences_plot(ax, presences.presences) if isinstance(presences, Presences) else None
 
-    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None):
+    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None, params: bool = True):
 
         """Save the presence zones.
 
@@ -1246,6 +1332,9 @@ class PresenceZones:
                  saved and not the PresenceZones object). The CRS must be either: a pyproj.CRS; a string in a format
                  accepted by pyproj.CRS.from_user_input (e.g., 'EPSG:4326'); or an integer in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 4326).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -1261,9 +1350,10 @@ class PresenceZones:
 
         presencezones.to_file(folder + '/' + self.name + '.gpkg')  # export presence zones
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 class Absences:
@@ -1421,7 +1511,7 @@ class Absences:
         absences_plot(ax=ax, points=self.absences, buffer=None)
         presencezones_plot(ax, presencezones.presencezones) if isinstance(presencezones, PresenceZones) else None
 
-    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None):
+    def save(self, folder: str, crs_export: str | int | pyproj.crs.crs.CRS = None, params: bool = True):
 
         """Save the absences.
 
@@ -1436,6 +1526,9 @@ class Absences:
                  not the Presences object). The CRS must be either: a pyproj.CRS; a string in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 'EPSG:4326'); or an integer in a format accepted by
                  pyproj.CRS.from_user_input (e.g., 4326).
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -1452,10 +1545,11 @@ class Absences:
             lambda dt: dt.strftime('%Y-%m-%d') if isinstance(dt, (datetime | pd.Timestamp)) else dt)
         absences.to_file(folder + '/' + self.name + '-points.gpkg')  # export absences
 
-        parameters = pd.DataFrame(
-            {key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame(
+                {key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
 
 
 ##############################################################################################################
@@ -1889,7 +1983,7 @@ class Samples:
         else:  # else only one approach used
             approach = approach[0]  # get approach
             if approach in ['grid', 'segment']:
-                print(f'\nNote: samples generated with the {approach} approach')
+                print(f'Note: samples generated with the {approach} approach')
             elif approach in ['point']:
                 raise Exception('\n\n____________________'
                                 '\nError: samples generated with point approach cannot be merged.'
@@ -2013,7 +2107,6 @@ class Samples:
                                              'tm_threshold': tm_threshold,
                                              'tm_unit': tm_unit}
 
-
     def reproject(self, crs_target: str | int | pyproj.crs.crs.CRS = 'EPSG:4326'):
 
         """Reprojects the samples GeoDataFrame to a target CRS.
@@ -2043,7 +2136,8 @@ class Samples:
             folder: str,
             filetype: str = 'both',
             crs_export: str | int | pyproj.crs.crs.CRS = None,
-            coords: bool = False):
+            coords: bool = False,
+            params: bool = True):
 
         """Save the samples.
 
@@ -2064,6 +2158,9 @@ class Samples:
             coords : bool, optional, default False
                 If True, x and y coordinates will be extracted from the centroid, midpoint, or point geometries and put
                  in separate columns. This may facilitate subsequent extraction of data from external sources.
+            params : bool, default True
+                If True (the default), the parameters will be saved as a CSV, otherwise if False, the parameters will
+                 not be saved.
         """
 
         check_dtype(par='folder', obj=folder, dtypes=str)
@@ -2095,6 +2192,7 @@ class Samples:
                     samples[col] = samples[col].to_wkt()  # ...convert to wkt
             samples.to_file(folder + '/' + self.name + '.gpkg')  # export
 
-        parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
-        parameters.columns = ['parameter', 'value']  # rename columns
-        parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters
+        if params:
+            parameters = pd.DataFrame({key: [value] for key, value in parameters.items()}).T.reset_index()  # parameters dataframe
+            parameters.columns = ['parameter', 'value']  # rename columns
+            parameters.to_csv(folder + '/' + self.name + '-parameters.csv', index=False)  # export parameters

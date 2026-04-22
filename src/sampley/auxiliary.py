@@ -74,12 +74,12 @@ def check_crs(par: str, crs: str | int | pyproj.crs.crs.CRS, none_allowed: bool 
             crs_name = '"' + str(crs) + '"'
             check = True
         elif isinstance(crs, (str, int)):
-            crs_name = '"' + crs + '"' if isinstance(crs, str) else crs
             try:
                 crs = CRS(crs)
                 check = True
             except pyproj.exceptions.CRSError:
                 check = False
+            crs_name = '"' + crs + '"' if isinstance(crs, str) else crs
         else:
             crs_name = crs
             check = False

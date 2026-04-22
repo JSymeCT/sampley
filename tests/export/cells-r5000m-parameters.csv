@@ -1,0 +1,8 @@
+parameter,value
+cells_crs,EPSG:4326
+cells_extent,"500095.6195505685, 4696798.086839909, 660095.6195505685, 4751798.086839909"
+cells_extent_source,GeoDataFrame
+cells_var,rectangular
+cells_side,5000
+cells_unit,metre
+cells_buffer,

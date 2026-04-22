@@ -20,7 +20,7 @@ https://github.com/JSBigelow/sampley/blob/main/sampley%20-%20User%20Manual.pdf).
 ```pip install sampley```
 
 ## Import
-For basic utilisation of ```sampley```, run:
+For basic use of ```sampley```, run:
 <br>```from sampley import *```
 
 To access the underlying functions, run:

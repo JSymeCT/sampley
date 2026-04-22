@@ -7,14 +7,25 @@ from datetime import timedelta
 from functools import reduce
 import math
 import numpy as np
+import shapely
 from pyproj import Geod
 import random
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon
-from shapely.errors import GEOSException
 from shapely.ops import substring, nearest_points
 import typing
 
 from .auxiliary import *
+
+
+##############################################################################################################
+def citation():
+    print('Thank you for using sampley!'
+          '\n\nTo cite sampley, please cite the following paper:'
+          '\nSyme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026). '
+          'sampley: a Python package for sampling visual survey data. Methods in Ecology and Evolution.'
+          '\n\nYou can also cite the package directly with:'
+          '\nSyme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2025). '
+          'sampley: sample survey data (v0.0.15). https://doi.org/10.5281/zenodo.19616964)')
 
 
 ##############################################################################################################
@@ -219,6 +230,7 @@ def sections_from_file(
             Optionally, the name of the column containing the section IDs. Each individual section must have its own
              unique ID. It is recommended that section IDs be codes consisting of letters and numbers and, optionally,
              underscores (e.g., ‘s001‘ or 20250710_s01‘).
+    
     Returns:
         Sections
             Returns a GeoDataFrame containing sections.
@@ -342,17 +354,16 @@ def sections_from_datapoints(
     else:  # else no aggregation dict provided..
         cols = {}  # ...make empty dict
 
-    try:
-        sections = sections.groupby(['section_id']).agg(  # group by section ID and...
-            cols | {  # ...combine the aggregation dict with dict to...
-               'geometry': lambda geometry: LineString(list(geometry)),  # ...convert the Points to LineStrings...
-               'datetime': 'first',  # ...keep the first datetime
-            }).reset_index()  # ...and reset the index
-    except GEOSException:  # occurs if attempt to make a LineString from a single Point
-        raise GEOSException('\n\n____________________'  # raise error
-                            '\nGEOSException: one or more sections contains a single datapoint.'
-                            '\nPlease ensure that all sections have a minimum of two datapoints.'
-                            '\n____________________')
+    counts = sections.groupby('section_id').agg({'geometry': 'nunique'}).reset_index()  # unique geometries per section
+    valid = counts[counts['geometry'] > 1]['section_id']  # section IDs of valid sections (i.e., with >=2 geometries)
+    sections[sections['section_id'].isin(valid)].reset_index(drop=True)  # keep only valid sections
+
+    sections = sections.groupby('section_id').agg(  # group by section ID and...
+        cols | {  # ...combine the aggregation dict with dict to...
+           'geometry': lambda geometry: LineString(list(geometry)),  # ...convert the Points to LineStrings...
+           'datetime': 'first',  # ...keep the first datetime
+        }).reset_index()  # ...and reset the index
+
     sections = gpd.GeoDataFrame(sections, geometry='geometry', crs=datapoints.crs)  # GeoDataFrame
     sections = sections[['section_id', 'geometry', 'datetime'] +  # reorder columns
                         [c for c in sections if c not in ['section_id', 'geometry', 'datetime']]]
@@ -455,7 +466,8 @@ def cells_delimit(
         extent: gpd.GeoDataFrame | tuple[list, str | int | pyproj.crs.crs.CRS],
         var: str,
         side: int | float,
-        buffer: int | float = None)\
+        buffer: int | float = None,
+        select: str = None)\
         -> gpd.GeoDataFrame:
 
     """Delimit grid cells.
@@ -463,7 +475,7 @@ def cells_delimit(
     From a given extent, variation, and side length, delimit rectangular or hexagonal grid cells of a regular size.
 
     Parameters:
-        extent : geopandas.GeoDataFrame | tuple[list, str]
+        extent : geopandas.GeoDataFrame | shapely geometry | tuple[list, str]
             An object detailing the spatial extent over which the periods will be limited. Must be one of:
                 a geopandas.GeoDataFrame
                 a tuple containing two elements: a list containing the x min, y min, x max, and y max and a CRS
@@ -476,6 +488,14 @@ def cells_delimit(
         buffer : int | float, optional, default 0
             The width of a buffer to be created around the extent to enlarge it and ensure that all the surveyed
              area is covered by the cells.
+        select : str, default None
+            Cells are initially made in a regular grid where all rows are the same length and all columns are the same
+             length. If select is None (default), this is how they will be left. Alternatively, the method to use to
+             select which cells to keep can be specified. Must be one of the following:
+                'intersects': only cells that intersect the extent are kept
+                'within': only cells that are within the extent are kept
+                'centroid': only cells whose centroid intersects the extent are kept
+             Note that select is only applicable if the extent is a GeoDataFrame.
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the cells.
@@ -545,6 +565,20 @@ def cells_delimit(
 
     cells = gpd.GeoDataFrame({'polygon': polygons}, geometry='polygon', crs=crs)  # GeoDataFrame
     cells['centroid'] = cells.centroid  # get cell centroids
+
+    if isinstance(select, str) and isinstance(extent, gpd.GeoDataFrame):  # if select method specified and extent appropriate
+        check_opt(par='select', opt=select, opts=['intersects', 'within', 'centroid'])
+        extent = extent.dissolve().geometry[0]  # ...dissolve the extent to single geometry
+        if buffer is not None:  # if a buffer is specified...
+            extent = extent.buffer(buffer)  # ...apply buffer
+        # then select the cells that...
+        if select == 'intersects':  # ...intersect the extent
+            cells = cells[cells.intersects(extent)].reset_index(drop=True)
+        elif select == 'within':  # ...are within the extent
+            cells = cells[cells.within(extent)].reset_index(drop=True)
+        elif select == 'centroid':  # ...whose centroid intersects the extent
+            cells = cells[cells['centroid'].intersects(extent)].reset_index(drop=True)
+
     cells['cell_id'] = ['c' + str(i).zfill(len(str(len(cells)))) +  # make cell IDs
                         '-' + var[0] + str(side) + cells.crs.axis_info[0].unit_name[0]
                         for i in range(1, len(cells) + 1)]
@@ -748,6 +782,7 @@ def presences_delimit(
         block : str, optional, default None
             Optionally, the name of a column that contains unique values to be used to separate the presences into
              blocks. These blocks can then be used later when generating absences.
+    
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the presences.
@@ -822,6 +857,7 @@ def presencezones_delimit(
                 'hour': hour (all datetimes in the same hour on the same date will be given the same value)
                 'moy': month of the year (i.e., January is 1, December is 12 regardless of the year)
                 'doy': day of the year (i.e., January 1st is 1, December 31st is 365 regardless of the year
+    
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the presence zones.
@@ -864,8 +900,8 @@ def presencezones_delimit(
             presencezones_list.append({  # append to the presence zones list...
                 'unit': section_unit,  # the unique unit of the presence zones
                 'presencezones':  # the zones of the temporally overlapping presences (if there are any, else None)
-                    gpd.GeoSeries(presences_overlap).buffer(sp_threshold).union_all()
-                    if len(presences_overlap) > 0 else None})
+                gpd.GeoSeries(presences_overlap).buffer(sp_threshold).union_all()
+                if len(presences_overlap) > 0 else None})
         # merge sections to presence zones that they overlap temporally with
         presencezones = pd.merge(sections_pz, pd.DataFrame(presencezones_list), on='unit', how='left')
         # convert the presence zones to GeoSeries
@@ -1019,6 +1055,7 @@ def absences_delimit(
         presences : GeoDataFrame, optional, default None
             If using block and how='presences', the presences GeoDataFrame on which to base the number of absences. Note
              that the presences must contain the same block column as the sections.
+    
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the absences.
@@ -1151,7 +1188,8 @@ def assign_cells(gdf: gpd.GeoDataFrame, cells: gpd.GeoDataFrame) -> gpd.GeoDataF
     """Assign cells to datapoints or sections.
 
     Takes a GeoDataFrame containing datapoints or sections of survey track and one containing grid cells and determines
-     which cell(s) each datapoint/section lies within by applying a spatial join.
+     which cell(s) each datapoint/section lies within by applying a spatial join. If a datapoint/section does not lie
+     within any cell, it will be discarded.
 
     Parameters:
         gdf : GeoDataFrame
@@ -1168,7 +1206,7 @@ def assign_cells(gdf: gpd.GeoDataFrame, cells: gpd.GeoDataFrame) -> gpd.GeoDataF
     crs = gdf.crs  # get CRS
 
     remove_cols(df=gdf, cols=['cell_id', 'polygon'])  # remove columns (if applicable)
-    gdf = gpd.sjoin(left_df=gdf, right_df=cells[['cell_id', 'polygon']], how='left')  # spatial join
+    gdf = gpd.sjoin(left_df=gdf, right_df=cells[['cell_id', 'polygon']], how='inner')  # spatial join
     gdf = gdf.drop('index_right', axis=1)  # drop index_right (byproduct of spatial join)
 
     gdf = gpd.GeoDataFrame(gdf, geometry=geometry_col, crs=crs)
@@ -1426,9 +1464,11 @@ def samples_segment(segments: gpd.GeoDataFrame, datapoints: gpd.GeoDataFrame,
                 dfb: each datapoint is matched to a segment based on the distance it is located from the start of
                  the sections lines (only applicable for matching segments that were made from sections that were
                  made from datapoints with Sections.from_datapoints and those datapoints)
+    
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the samples.
+            
     Examples:
         For a set of datapoints that has a column of counts of individuals, 'individuals', and a column of values
          for Beaufort sea state (BSS), 'bss', the parameter cols could be set to the following in order to sum the
@@ -1611,7 +1651,8 @@ def samples_grid_se(sections: gpd.GeoDataFrame, cells: gpd.GeoDataFrame, periods
             If False, only those cell-period combinations that have at least some survey effort will be included in
              samples. If True, all possible cell-period combinations will be included in samples (note that this may
              result in a large number of samples that have no data).
-    Returns
+    
+    Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the samples. The survey effort measures will be contained in the following
              columns (if applicable):
@@ -1735,7 +1776,7 @@ def samples_segment_se(segments: gpd.GeoDataFrame, length: bool = True, esw: int
         euc_geo : {'euclidean', 'geodesic', 'both'}, optional, default 'euclidean'
             The type of measurement. Must be one of the following: 'euclidean', 'geodesic', or 'both'.
 
-    Returns
+    Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the segments. The survey effort measures will be contained in the
              following columns (if applicable):
@@ -1792,6 +1833,7 @@ def samples_merge(approach: str, **kwargs: pd.DataFrame):
             A string indicating the approach used to generate the samples. One of the following:
                 'grid'
                 'segment'
+    
     Returns:
         GeoDataFrame
             Returns a GeoDataFrame containing the merged samples.
@@ -1980,7 +2022,6 @@ def generate_dfls(number: int | float, esw: int | float, interval: int | float, 
      If dfunc is specified, the distances will be based on probabilities set by dfunc, else probabilities will be even
      for all intervals.
 
-    __________
     Parameters:
       number: int | float
         The number of distances to generate.
@@ -1994,7 +2035,9 @@ def generate_dfls(number: int | float, esw: int | float, interval: int | float, 
          probabilities derived from the function. The function should be predefined then entered to generate_dfls. If
          not specified, distances will be evenly distributed between 0 and the ESW.
 
-    __________
+    Returns:
+      The distances from the line as a list of integers or floats.
+
     Example:
         number = 100000
         esw = 2000
@@ -2002,9 +2045,6 @@ def generate_dfls(number: int | float, esw: int | float, interval: int | float, 
         def dfunc(x): return exp((-x**2) / (2*500**2))
         dfls = generate_dfls(number=number, esw=esw, interval=interval, dfunc=dfunc)
 
-    __________
-    Returns:
-      The distances from the line as a list of integers or floats.
     """
 
     intervals = np.arange(0, esw + interval, interval)  # regular intervals from the line
@@ -2023,7 +2063,6 @@ def calculate_area_udf(esw: int | float, interval: int | float, dfunc: typing.Ca
     Calculates the area under a detection function between 0 and the specified effective stripwidth (ESW). If dfunc is
      specified, the area will be based on dfunc, else the area will be based on an even probability across intervals.
 
-    __________
     Parameters:
       esw: int | float
         The effective stripwidth (i.e., the maximum distance from the line).
@@ -2034,17 +2073,15 @@ def calculate_area_udf(esw: int | float, interval: int | float, dfunc: typing.Ca
         Optionally, a callable function (e.g., a detection function), in which case, distances will be generated based on
          probabilities derived from the function. The function should be predefined then entered to generate_dfls. If
          not specified, distances will be evenly distributed between 0 and the ESW.
+    
+    Returns:
+      The area under the detection function as an integer or float.
 
-    __________
     Example:
         esw = 2000
         interval = 1
         def dfunc(x): return exp((-x**2) / (2*500**2))
         area = calculate_area_udf(esw=esw, interval=interval, dfunc=dfunc)
-
-    __________
-    Returns:
-      The area under the detection function as an integer or float.
     """
     intervals = np.arange(0, esw + interval, interval)  # distances from the line at set intervals
     # probabilities for the distances at the regular intervals:

@@ -1,0 +1,4 @@
+parameter,value
+sections_filepath,./sampley/tests/import/sections.gpkg
+sections_crs,4326
+sections_tz,UTC-07:00
