@@ -19,13 +19,14 @@ from .auxiliary import *
 
 ##############################################################################################################
 def citation():
-    print('Thank you for using sampley!'
-          '\n\nTo cite sampley, please cite the following paper:'
-          '\nSyme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026). '
-          'sampley: a Python package for sampling visual survey data. Methods in Ecology and Evolution.'
+    print('To cite sampley, please cite the following paper:'
+          '\n  Syme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026). '
+          '\n  sampley: A Python package for sampling visual survey data. Methods in Ecology and Evolution. '
+          '\n  https://doi.org/10.1111/2041-210x.70320'
           '\n\nYou can also cite the package directly with:'
-          '\nSyme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2025). '
-          'sampley: sample survey data (v0.0.15). https://doi.org/10.5281/zenodo.19616964)')
+          '\n  Syme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026). '
+          '\n  sampley: sample survey data (v0.0.16). https://doi.org/10.5281/zenodo.19616964'
+          '\n\nThank you!')
 
 
 ##############################################################################################################

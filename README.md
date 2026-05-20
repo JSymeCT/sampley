@@ -10,11 +10,12 @@ model.
 allocating detections and, optionally, survey effort to the cells that they lie within. Additionally, data may be 
 allocated to temporal periods. Each cell within a given period then serves as a sample.
 <br>The **segment approach** involves taking sections of continuous, uniform survey effort and cutting them into segments
-of standardised lengths which serve as samples.
+of standardised lengths. Each segment, with associated detections and other data, then serves as a sample.
 <br>The **point approach** consists of using the detections, or a subset thereof, as presences and then sampling absences
 from absence zones (i.e., areas that were surveyed but where the species was not detected).
 <br><br>For more information, please consult the User Manual (available on the GitHub repo at: 
-https://github.com/JSBigelow/sampley/blob/main/sampley%20-%20User%20Manual.pdf).
+https://github.com/JSymeCT/sampley/blob/main/sampley%20-%20User%20Manual.pdf) 
+or the associated paper (available at: https://doi.org/10.1111/2041-210x.70320)
 
 ## Installation
 ```pip install sampley```
@@ -28,14 +29,26 @@ To access the underlying functions, run:
 
 ## User Manual
 A user manual containing more detailed information is available on GitHub at:
-https://github.com/JSBigelow/sampley/blob/main/sampley%20-%20User%20Manual.pdf
+https://github.com/JSymeCT/sampley/blob/main/sampley%20-%20User%20Manual.pdf
 
 ## Example usage
 Several exemplars illustrating how to use ```sampley``` are available on GitHub at: 
-https://github.com/JSBigelow/sampley/tree/main/exemplars
+https://github.com/JSymeCT/sampley/tree/main/exemplars
 
 See the _Introduction to sampley exemplars_ (```intro.ipynb```) for more information 
-(https://github.com/JSBigelow/sampley/blob/main/exemplars/intro.ipynb)
+(https://github.com/JSymeCT/sampley/blob/main/exemplars/intro.ipynb)
 
 ## License
 MIT
+
+## Citation
+To cite ```sampley```, please cite the following paper:
+<br>Syme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026).
+sampley: A Python package for sampling visual survey data. 
+Methods in Ecology and Evolution. https://doi.org/10.1111/2041-210x.70320
+
+You can also cite the package directly with:
+<br>Syme, J., Pendleton, D. E., Meyer-Gutbrod, E. L., Tupper, B., & Record, N. R. (2026). 
+sampley: sample survey data (v0.0.16). https://doi.org/10.5281/zenodo.19616964
+
+Thank you!
