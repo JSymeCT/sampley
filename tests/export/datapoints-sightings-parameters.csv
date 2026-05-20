@@ -1,5 +1,0 @@
-parameter,value
-datapoints_filepath,./sampley/tests/import/sightings.csv
-datapoints_crs,4326
-datapoints_tz,UTC-07:00
-datapoints_data_cols,"individuals, season"
